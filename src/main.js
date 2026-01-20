@@ -99,6 +99,8 @@ const windowMetrics = {
 
 const pointerState = { x: 0, y: 0, active: false };
 const cursorDotRadius = 3;
+const raycaster = new THREE.Raycaster();
+const pointerNdc = new THREE.Vector2();
 
 let boxGroup = null;
 let boxEdges = null;
@@ -113,6 +115,7 @@ let colorsEnabled = true;
 let cellsVisible = true;
 let wireframeEnabled = false;
 let explodeDistance = 0;
+let middleClick = null;
 
 function updateRange(input, output, formatter) {
   const value = Number(input.value);
@@ -170,6 +173,21 @@ function syncWireframeToggle() {
   wfOff.classList.toggle("active", !wireframeEnabled);
   if (wireframeGroup) {
     wireframeGroup.visible = wireframeEnabled;
+  }
+}
+
+function hideCell(seedIndex) {
+  if (seedIndex === undefined || seedIndex === null) {
+    return;
+  }
+  if (cellsGroup?.children?.[seedIndex]) {
+    cellsGroup.children[seedIndex].visible = false;
+  }
+  if (wireframeGroup?.children?.[seedIndex]) {
+    wireframeGroup.children[seedIndex].visible = false;
+  }
+  if (seedPointMesh?.children?.[seedIndex]) {
+    seedPointMesh.children[seedIndex].visible = false;
   }
 }
 
@@ -356,24 +374,10 @@ function rebuildSeedPoints(count, dims, seed) {
   disposeObject(seedPointMesh);
 
   const rng = createRng(seed);
-  const positions = new Float32Array(count * 3);
   const halfX = dims.x * 0.5;
   const halfY = dims.y * 0.5;
   const halfZ = dims.z * 0.5;
   seedPoints = [];
-
-  for (let i = 0; i < count; i += 1) {
-    const x = (rng() * 2 - 1) * halfX;
-    const y = (rng() * 2 - 1) * halfY;
-    const z = (rng() * 2 - 1) * halfZ;
-    positions[i * 3] = x;
-    positions[i * 3 + 1] = y;
-    positions[i * 3 + 2] = z;
-    seedPoints.push(new THREE.Vector3(x, y, z));
-  }
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
 
   const size = Math.max(dims.x, dims.y, dims.z) / 120;
   const material = new THREE.PointsMaterial({
@@ -381,8 +385,25 @@ function rebuildSeedPoints(count, dims, seed) {
     size,
     sizeAttenuation: true
   });
+  const group = new THREE.Group();
 
-  seedPointMesh = new THREE.Points(geometry, material);
+  for (let i = 0; i < count; i += 1) {
+    const x = (rng() * 2 - 1) * halfX;
+    const y = (rng() * 2 - 1) * halfY;
+    const z = (rng() * 2 - 1) * halfZ;
+    seedPoints.push(new THREE.Vector3(x, y, z));
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute([x, y, z], 3)
+    );
+    const point = new THREE.Points(geometry, material);
+    point.userData.seedIndex = i;
+    group.add(point);
+  }
+
+  seedPointMesh = group;
+  seedPointMesh.visible = showBoxEdges;
   scene.add(seedPointMesh);
 }
 
@@ -802,10 +823,12 @@ function rebuildCells(dims, density, smoothing) {
     }
     const dir = center.lengthSq() > 0 ? center.clone().normalize() : new THREE.Vector3();
     mesh.userData.explodeDir = dir;
+    mesh.userData.seedIndex = i;
     group.add(mesh);
 
     const wireMesh = new THREE.Mesh(geometry, wireframeMaterial);
     wireMesh.userData.explodeDir = dir;
+    wireMesh.userData.seedIndex = i;
     wireGroup.add(wireMesh);
 
     const vertexCount = geometry.getAttribute("position").count;
@@ -895,10 +918,62 @@ renderer.domElement.addEventListener("pointermove", (event) => {
   pointerState.y = event.clientY;
   pointerState.active = true;
   updateBrushOverlay(pointerState.x, pointerState.y, true);
+  if (middleClick && event.pointerId === middleClick.pointerId) {
+    const dx = event.clientX - middleClick.x;
+    const dy = event.clientY - middleClick.y;
+    if (Math.hypot(dx, dy) > 4) {
+      middleClick.moved = true;
+    }
+  }
 });
 renderer.domElement.addEventListener("pointerleave", () => {
   pointerState.active = false;
   updateBrushOverlay(pointerState.x, pointerState.y, false);
+});
+renderer.domElement.addEventListener("pointerdown", (event) => {
+  if (event.button !== 1) {
+    return;
+  }
+  middleClick = {
+    x: event.clientX,
+    y: event.clientY,
+    pointerId: event.pointerId,
+    moved: false
+  };
+});
+renderer.domElement.addEventListener("pointerup", (event) => {
+  if (event.button !== 1 || !middleClick || event.pointerId !== middleClick.pointerId) {
+    return;
+  }
+  const shouldSelect = !middleClick.moved;
+  middleClick = null;
+  if (!shouldSelect) {
+    return;
+  }
+  const cellTargets = cellsGroup?.visible
+    ? cellsGroup.children.filter((child) => child.visible)
+    : wireframeGroup?.visible
+      ? wireframeGroup.children.filter((child) => child.visible)
+      : [];
+  if (!cellTargets.length) {
+    return;
+  }
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNdc.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNdc.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointerNdc, camera);
+  const hits = raycaster.intersectObjects(cellTargets, false);
+  if (!hits.length) {
+    return;
+  }
+  const seedIndex = hits[0].object.userData.seedIndex;
+  hideCell(seedIndex);
+  event.preventDefault();
+});
+renderer.domElement.addEventListener("pointercancel", (event) => {
+  if (middleClick && event.pointerId === middleClick.pointerId) {
+    middleClick = null;
+  }
 });
 
 window.addEventListener("resize", () => {
