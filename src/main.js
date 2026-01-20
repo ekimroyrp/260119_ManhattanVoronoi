@@ -56,6 +56,7 @@ const pointsInput = document.getElementById("points");
 const seedInput = document.getElementById("seed");
 const densityInput = document.getElementById("density");
 const smoothingInput = document.getElementById("smoothing");
+const explodeInput = document.getElementById("explode");
 const cubeToggle = document.getElementById("cube-toggle");
 const colorsToggle = document.getElementById("colors-toggle");
 const cellsToggle = document.getElementById("cells-toggle");
@@ -70,6 +71,7 @@ const pointsValue = document.getElementById("points-value");
 const seedValue = document.getElementById("seed-value");
 const densityValue = document.getElementById("density-value");
 const smoothValue = document.getElementById("smooth-value");
+const explodeValue = document.getElementById("explode-value");
 const cubeOn = document.getElementById("cube-on");
 const cubeOff = document.getElementById("cube-off");
 const colorsOn = document.getElementById("colors-on");
@@ -110,15 +112,16 @@ let showBoxEdges = true;
 let colorsEnabled = true;
 let cellsVisible = true;
 let wireframeEnabled = false;
+let explodeDistance = 0;
 
-function updateRange(input, output) {
+function updateRange(input, output, formatter) {
   const value = Number(input.value);
   const percent =
     ((value - Number(input.min)) / (Number(input.max) - Number(input.min))) *
     100;
   input.style.setProperty("--val", `${percent}%`);
   if (output) {
-    output.textContent = value;
+    output.textContent = formatter ? formatter(value) : value;
   }
   return value;
 }
@@ -140,6 +143,9 @@ function syncCubeToggle() {
   cubeOff.classList.toggle("active", !showBoxEdges);
   if (boxEdges) {
     boxEdges.visible = showBoxEdges;
+  }
+  if (seedPointMesh) {
+    seedPointMesh.visible = showBoxEdges;
   }
 }
 
@@ -165,6 +171,24 @@ function syncWireframeToggle() {
   if (wireframeGroup) {
     wireframeGroup.visible = wireframeEnabled;
   }
+}
+
+function applyExplode(distance) {
+  explodeDistance = distance;
+  const updateGroup = (group) => {
+    if (!group) {
+      return;
+    }
+    group.children.forEach((mesh) => {
+      const dir = mesh.userData.explodeDir;
+      if (!dir) {
+        return;
+      }
+      mesh.position.set(dir.x * explodeDistance, dir.y * explodeDistance, dir.z * explodeDistance);
+    });
+  };
+  updateGroup(cellsGroup);
+  updateGroup(wireframeGroup);
 }
 
 function getPanelScale(rect) {
@@ -768,12 +792,20 @@ function rebuildCells(dims, density, smoothing) {
     geometry = clampGeometryToBounds(geometry, bounds);
     geometry = flipGeometryNormals(geometry);
     geometry.computeVertexNormals();
+    geometry.computeBoundingBox();
 
     const material = getCellMaterial(i, seedPoints.length);
     const mesh = new THREE.Mesh(geometry, material);
+    const center = new THREE.Vector3();
+    if (geometry.boundingBox) {
+      geometry.boundingBox.getCenter(center);
+    }
+    const dir = center.lengthSq() > 0 ? center.clone().normalize() : new THREE.Vector3();
+    mesh.userData.explodeDir = dir;
     group.add(mesh);
 
     const wireMesh = new THREE.Mesh(geometry, wireframeMaterial);
+    wireMesh.userData.explodeDir = dir;
     wireGroup.add(wireMesh);
 
     const vertexCount = geometry.getAttribute("position").count;
@@ -791,6 +823,7 @@ function rebuildCells(dims, density, smoothing) {
   wireframeGroup = wireGroup;
   wireframeGroup.visible = wireframeEnabled;
   scene.add(wireframeGroup);
+  applyExplode(explodeDistance);
 
   return {
     cells: group.children.length,
@@ -889,6 +922,12 @@ rangeInputs.forEach(([input, output]) => {
     updateRange(input, output);
     scheduleRebuild(220);
   });
+});
+
+updateRange(explodeInput, explodeValue, (value) => value.toFixed(1));
+explodeInput.addEventListener("input", () => {
+  const value = updateRange(explodeInput, explodeValue, (next) => next.toFixed(1));
+  applyExplode(value);
 });
 
 cubeToggle.addEventListener("change", (event) => {
