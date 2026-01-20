@@ -1,5 +1,8 @@
+# Dependencies
 node_modules
-dist
-.vite
-.DS_Store
+
+# Logs and temp
 npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+.DS_Store
