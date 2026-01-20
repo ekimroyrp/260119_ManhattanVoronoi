@@ -1,6 +1,11 @@
 import "./style.css";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import {
+  edgeTable as EDGE_TABLE,
+  triTable as TRI_TABLE
+} from "three/examples/jsm/objects/MarchingCubes.js";
+import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 const host = document.querySelector("#canvas-host");
 const scene = new THREE.Scene();
@@ -18,7 +23,7 @@ const camera = new THREE.PerspectiveCamera(
   45,
   initialWidth / initialHeight,
   0.1,
-  400
+  600
 );
 camera.position.set(14, 12, 14);
 
@@ -68,6 +73,11 @@ const densityValue = document.getElementById("density-value");
 const smoothValue = document.getElementById("smooth-value");
 const meshStats = document.getElementById("mesh-stats");
 
+const ISO_LEVEL = 0.5;
+const EDGE_VERTEX_A = [0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3];
+const EDGE_VERTEX_B = [1, 2, 3, 0, 5, 6, 7, 4, 4, 5, 6, 7];
+const EPSILON = 1e-6;
+
 let isPanelDragging = false;
 let panelDragStart = { x: 0, y: 0 };
 let panelPointerStart = { x: 0, y: 0 };
@@ -83,6 +93,7 @@ let brushRadius = 12;
 
 let boxGroup = null;
 let seedPointMesh = null;
+let cellsGroup = null;
 let seedPoints = [];
 let rebuildTimer = null;
 
@@ -98,8 +109,15 @@ function updateRange(input, output) {
   return value;
 }
 
-function updateMeshStats(count, density, smoothing) {
-  meshStats.textContent = `Seeds: ${count} | Density: ${density} | Smooth: ${smoothing}`;
+function updateMeshStats(stats) {
+  if (!stats) {
+    meshStats.textContent = "Building...";
+    return;
+  }
+  const cells = stats.cells ?? "--";
+  const triangles = stats.triangles ?? "--";
+  const vertices = stats.vertices ?? "--";
+  meshStats.textContent = `Cells: ${cells} | Tris: ${triangles} | Verts: ${vertices}`;
 }
 
 function getPanelScale(rect) {
@@ -230,9 +248,9 @@ function disposeObject(object) {
 
 function getBoxDims() {
   return {
-    x: Math.max(1, Number(boxXInput.value) || 1),
-    y: Math.max(1, Number(boxYInput.value) || 1),
-    z: Math.max(1, Number(boxZInput.value) || 1)
+    x: Math.max(2, Number(boxXInput.value) || 2),
+    y: Math.max(2, Number(boxYInput.value) || 2),
+    z: Math.max(2, Number(boxZInput.value) || 2)
   };
 }
 
@@ -295,21 +313,411 @@ function rebuildSeedPoints(count, dims, seed) {
   scene.add(seedPointMesh);
 }
 
+function buildGrid(dims, density) {
+  const maxDim = Math.max(dims.x, dims.y, dims.z);
+  const targetCells = Math.max(6, Math.round(density));
+  const cellSize = maxDim / targetCells;
+  const cellsX = Math.max(2, Math.round(dims.x / cellSize));
+  const cellsY = Math.max(2, Math.round(dims.y / cellSize));
+  const cellsZ = Math.max(2, Math.round(dims.z / cellSize));
+  const stepX = dims.x / cellsX;
+  const stepY = dims.y / cellsY;
+  const stepZ = dims.z / cellsZ;
+  const pad = 1;
+  const vertsX = cellsX + 1 + pad * 2;
+  const vertsY = cellsY + 1 + pad * 2;
+  const vertsZ = cellsZ + 1 + pad * 2;
+  const originX = -dims.x * 0.5 - pad * stepX;
+  const originY = -dims.y * 0.5 - pad * stepY;
+  const originZ = -dims.z * 0.5 - pad * stepZ;
+
+  return {
+    cellsX,
+    cellsY,
+    cellsZ,
+    vertsX,
+    vertsY,
+    vertsZ,
+    stepX,
+    stepY,
+    stepZ,
+    originX,
+    originY,
+    originZ
+  };
+}
+
+function buildVoronoiAssignment(seeds, grid, dims) {
+  const { vertsX, vertsY, vertsZ, originX, originY, originZ, stepX, stepY, stepZ } =
+    grid;
+  const vertexCount = vertsX * vertsY * vertsZ;
+  const bestIndices = new Int32Array(vertexCount);
+  bestIndices.fill(-1);
+
+  const xCoords = new Float32Array(vertsX);
+  const yCoords = new Float32Array(vertsY);
+  const zCoords = new Float32Array(vertsZ);
+
+  for (let i = 0; i < vertsX; i += 1) {
+    xCoords[i] = originX + i * stepX;
+  }
+  for (let i = 0; i < vertsY; i += 1) {
+    yCoords[i] = originY + i * stepY;
+  }
+  for (let i = 0; i < vertsZ; i += 1) {
+    zCoords[i] = originZ + i * stepZ;
+  }
+
+  const halfX = dims.x * 0.5 + EPSILON;
+  const halfY = dims.y * 0.5 + EPSILON;
+  const halfZ = dims.z * 0.5 + EPSILON;
+
+  let index = 0;
+  for (let z = 0; z < vertsZ; z += 1) {
+    const zPos = zCoords[z];
+    for (let y = 0; y < vertsY; y += 1) {
+      const yPos = yCoords[y];
+      for (let x = 0; x < vertsX; x += 1) {
+        const xPos = xCoords[x];
+        if (Math.abs(xPos) > halfX || Math.abs(yPos) > halfY || Math.abs(zPos) > halfZ) {
+          bestIndices[index] = -1;
+          index += 1;
+          continue;
+        }
+        let bestDistance = Number.POSITIVE_INFINITY;
+        let bestIndex = -1;
+        for (let i = 0; i < seeds.length; i += 1) {
+          const seed = seeds[i];
+          const dist =
+            Math.abs(xPos - seed.x) +
+            Math.abs(yPos - seed.y) +
+            Math.abs(zPos - seed.z);
+          if (dist < bestDistance) {
+            bestDistance = dist;
+            bestIndex = i;
+          }
+        }
+        bestIndices[index] = bestIndex;
+        index += 1;
+      }
+    }
+  }
+
+  return { bestIndices, xCoords, yCoords, zCoords };
+}
+
+function buildCellGeometry(cellIndex, grid, assignment) {
+  const { vertsX, vertsY, vertsZ } = grid;
+  const { bestIndices, xCoords, yCoords, zCoords } = assignment;
+  const positions = [];
+  const edgeVerts = new Float32Array(36);
+  const values = new Float32Array(8);
+  const px = new Float32Array(8);
+  const py = new Float32Array(8);
+  const pz = new Float32Array(8);
+  const slice = vertsX * vertsY;
+
+  for (let z = 0; z < vertsZ - 1; z += 1) {
+    const z0 = zCoords[z];
+    const z1 = zCoords[z + 1];
+    for (let y = 0; y < vertsY - 1; y += 1) {
+      const y0 = yCoords[y];
+      const y1 = yCoords[y + 1];
+      for (let x = 0; x < vertsX - 1; x += 1) {
+        const x0 = xCoords[x];
+        const x1 = xCoords[x + 1];
+
+        const v0 = x + vertsX * (y + vertsY * z);
+        const v1 = v0 + 1;
+        const v3 = v0 + vertsX;
+        const v2 = v3 + 1;
+        const v4 = v0 + slice;
+        const v5 = v4 + 1;
+        const v7 = v4 + vertsX;
+        const v6 = v7 + 1;
+
+        values[0] = bestIndices[v0] === cellIndex ? 1 : 0;
+        values[1] = bestIndices[v1] === cellIndex ? 1 : 0;
+        values[2] = bestIndices[v2] === cellIndex ? 1 : 0;
+        values[3] = bestIndices[v3] === cellIndex ? 1 : 0;
+        values[4] = bestIndices[v4] === cellIndex ? 1 : 0;
+        values[5] = bestIndices[v5] === cellIndex ? 1 : 0;
+        values[6] = bestIndices[v6] === cellIndex ? 1 : 0;
+        values[7] = bestIndices[v7] === cellIndex ? 1 : 0;
+
+        let cubeIndex = 0;
+        if (values[0] > ISO_LEVEL) cubeIndex |= 1;
+        if (values[1] > ISO_LEVEL) cubeIndex |= 2;
+        if (values[2] > ISO_LEVEL) cubeIndex |= 4;
+        if (values[3] > ISO_LEVEL) cubeIndex |= 8;
+        if (values[4] > ISO_LEVEL) cubeIndex |= 16;
+        if (values[5] > ISO_LEVEL) cubeIndex |= 32;
+        if (values[6] > ISO_LEVEL) cubeIndex |= 64;
+        if (values[7] > ISO_LEVEL) cubeIndex |= 128;
+
+        const edgeMask = EDGE_TABLE[cubeIndex];
+        if (edgeMask === 0) {
+          continue;
+        }
+
+        px[0] = x0;
+        py[0] = y0;
+        pz[0] = z0;
+        px[1] = x1;
+        py[1] = y0;
+        pz[1] = z0;
+        px[2] = x1;
+        py[2] = y1;
+        pz[2] = z0;
+        px[3] = x0;
+        py[3] = y1;
+        pz[3] = z0;
+        px[4] = x0;
+        py[4] = y0;
+        pz[4] = z1;
+        px[5] = x1;
+        py[5] = y0;
+        pz[5] = z1;
+        px[6] = x1;
+        py[6] = y1;
+        pz[6] = z1;
+        px[7] = x0;
+        py[7] = y1;
+        pz[7] = z1;
+
+        for (let e = 0; e < 12; e += 1) {
+          if (!(edgeMask & (1 << e))) {
+            continue;
+          }
+          const a = EDGE_VERTEX_A[e];
+          const b = EDGE_VERTEX_B[e];
+          const valA = values[a];
+          const valB = values[b];
+          let t = 0.5;
+          if (Math.abs(valB - valA) > EPSILON) {
+            t = (ISO_LEVEL - valA) / (valB - valA);
+          }
+          const offset = e * 3;
+          edgeVerts[offset] = px[a] + t * (px[b] - px[a]);
+          edgeVerts[offset + 1] = py[a] + t * (py[b] - py[a]);
+          edgeVerts[offset + 2] = pz[a] + t * (pz[b] - pz[a]);
+        }
+
+        const triOffset = cubeIndex * 16;
+        for (let i = 0; i < 16; i += 3) {
+          const e0 = TRI_TABLE[triOffset + i];
+          if (e0 === -1) {
+            break;
+          }
+          const e1 = TRI_TABLE[triOffset + i + 1];
+          const e2 = TRI_TABLE[triOffset + i + 2];
+          positions.push(
+            edgeVerts[e0 * 3],
+            edgeVerts[e0 * 3 + 1],
+            edgeVerts[e0 * 3 + 2],
+            edgeVerts[e1 * 3],
+            edgeVerts[e1 * 3 + 1],
+            edgeVerts[e1 * 3 + 2],
+            edgeVerts[e2 * 3],
+            edgeVerts[e2 * 3 + 1],
+            edgeVerts[e2 * 3 + 2]
+          );
+        }
+      }
+    }
+  }
+
+  if (positions.length === 0) {
+    return null;
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geometry;
+}
+
+function smoothGeometry(geometry, iterations) {
+  if (iterations <= 0 || !geometry) {
+    return geometry;
+  }
+
+  let working = geometry;
+  if (!working.index) {
+    const merged = mergeVertices(working, 1e-4);
+    if (merged !== working) {
+      working.dispose();
+      working = merged;
+    }
+  }
+
+  const position = working.getAttribute("position");
+  const index = working.index ? working.index.array : null;
+  if (!index) {
+    return working;
+  }
+
+  const vertexCount = position.count;
+  const neighbors = Array.from({ length: vertexCount }, () => new Set());
+
+  for (let i = 0; i < index.length; i += 3) {
+    const a = index[i];
+    const b = index[i + 1];
+    const c = index[i + 2];
+    neighbors[a].add(b);
+    neighbors[a].add(c);
+    neighbors[b].add(a);
+    neighbors[b].add(c);
+    neighbors[c].add(a);
+    neighbors[c].add(b);
+  }
+
+  const positions = position.array;
+  const temp = new Float32Array(positions.length);
+  const lambda = 0.5;
+
+  for (let iter = 0; iter < iterations; iter += 1) {
+    for (let v = 0; v < vertexCount; v += 1) {
+      const neighborSet = neighbors[v];
+      const idx = v * 3;
+      if (!neighborSet || neighborSet.size === 0) {
+        temp[idx] = positions[idx];
+        temp[idx + 1] = positions[idx + 1];
+        temp[idx + 2] = positions[idx + 2];
+        continue;
+      }
+      let avgX = 0;
+      let avgY = 0;
+      let avgZ = 0;
+      neighborSet.forEach((n) => {
+        const nIdx = n * 3;
+        avgX += positions[nIdx];
+        avgY += positions[nIdx + 1];
+        avgZ += positions[nIdx + 2];
+      });
+      const invCount = 1 / neighborSet.size;
+      avgX *= invCount;
+      avgY *= invCount;
+      avgZ *= invCount;
+
+      temp[idx] = positions[idx] + lambda * (avgX - positions[idx]);
+      temp[idx + 1] = positions[idx + 1] + lambda * (avgY - positions[idx + 1]);
+      temp[idx + 2] = positions[idx + 2] + lambda * (avgZ - positions[idx + 2]);
+    }
+    positions.set(temp);
+  }
+
+  position.needsUpdate = true;
+  return working;
+}
+
+function flipGeometryNormals(geometry) {
+  if (!geometry) {
+    return geometry;
+  }
+  if (geometry.index) {
+    const index = geometry.index.array;
+    for (let i = 0; i < index.length; i += 3) {
+      const b = index[i + 1];
+      index[i + 1] = index[i + 2];
+      index[i + 2] = b;
+    }
+    geometry.index.needsUpdate = true;
+    return geometry;
+  }
+  const position = geometry.getAttribute("position");
+  if (!position) {
+    return geometry;
+  }
+  const array = position.array;
+  for (let i = 0; i < array.length; i += 9) {
+    const bx = array[i + 3];
+    const by = array[i + 4];
+    const bz = array[i + 5];
+    array[i + 3] = array[i + 6];
+    array[i + 4] = array[i + 7];
+    array[i + 5] = array[i + 8];
+    array[i + 6] = bx;
+    array[i + 7] = by;
+    array[i + 8] = bz;
+  }
+  position.needsUpdate = true;
+  return geometry;
+}
+
+function getCellMaterial(index, total) {
+  const hue = total > 0 ? index / total : 0;
+  const color = new THREE.Color().setHSL(hue, 0.18, 0.6);
+  return new THREE.MeshStandardMaterial({
+    color,
+    metalness: 0.12,
+    roughness: 0.55
+  });
+}
+
+function rebuildCells(dims, density, smoothing) {
+  disposeObject(cellsGroup);
+  if (!seedPoints.length) {
+    return { cells: 0, triangles: 0, vertices: 0 };
+  }
+
+  const grid = buildGrid(dims, density);
+  const assignment = buildVoronoiAssignment(seedPoints, grid, dims);
+  const group = new THREE.Group();
+
+  let totalTriangles = 0;
+  let totalVertices = 0;
+
+  for (let i = 0; i < seedPoints.length; i += 1) {
+    const baseGeometry = buildCellGeometry(i, grid, assignment);
+    if (!baseGeometry) {
+      continue;
+    }
+    let geometry = mergeVertices(baseGeometry, 1e-4);
+    if (geometry !== baseGeometry) {
+      baseGeometry.dispose();
+    }
+    geometry = smoothGeometry(geometry, smoothing);
+    geometry = flipGeometryNormals(geometry);
+    geometry.computeVertexNormals();
+
+    const material = getCellMaterial(i, seedPoints.length);
+    const mesh = new THREE.Mesh(geometry, material);
+    group.add(mesh);
+
+    const vertexCount = geometry.getAttribute("position").count;
+    const triangleCount = geometry.index
+      ? geometry.index.count / 3
+      : vertexCount / 3;
+    totalVertices += vertexCount;
+    totalTriangles += triangleCount;
+  }
+
+  cellsGroup = group;
+  scene.add(cellsGroup);
+
+  return {
+    cells: group.children.length,
+    triangles: Math.round(totalTriangles),
+    vertices: Math.round(totalVertices)
+  };
+}
+
 function rebuildPreview() {
   const dims = getBoxDims();
   const pointCount = Math.max(1, Number(pointsInput.value) || 1);
   const seed = Math.max(0, Number(seedInput.value) || 0);
-  const density = Math.max(2, Number(densityInput.value) || 2);
-  const smoothing = Math.max(0, Number(smoothingInput.value) || 0);
+  const density = Math.max(6, Number(densityInput.value) || 6);
+  const smoothing = Math.max(0, Math.round(Number(smoothingInput.value) || 0));
 
   rebuildBox(dims);
   rebuildSeedPoints(pointCount, dims, seed);
+  updateMeshStats(null);
 
-  // Placeholder for Manhattan Voronoi cell generation.
-  updateMeshStats(pointCount, density, smoothing);
+  const stats = rebuildCells(dims, density, smoothing);
+  updateMeshStats(stats);
 }
 
-function scheduleRebuild(delay = 120) {
+function scheduleRebuild(delay = 160) {
   if (rebuildTimer) {
     window.clearTimeout(rebuildTimer);
   }
@@ -320,7 +728,10 @@ function scheduleRebuild(delay = 120) {
 }
 
 function resetCamera() {
-  camera.position.set(14, 12, 14);
+  const dims = getBoxDims();
+  const maxDim = Math.max(dims.x, dims.y, dims.z);
+  const distance = maxDim * 1.4;
+  camera.position.set(distance, distance * 0.85, distance);
   controls.target.set(0, 0, 0);
   controls.update();
 }
@@ -377,7 +788,7 @@ rangeInputs.forEach(([input, output]) => {
   updateRange(input, output);
   input.addEventListener("input", () => {
     updateRange(input, output);
-    scheduleRebuild(180);
+    scheduleRebuild(220);
   });
 });
 
