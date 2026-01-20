@@ -43,7 +43,6 @@ fillLight.position.set(-4, -2, -6);
 scene.add(ambient, keyLight, fillLight);
 
 const brushOverlay = document.getElementById("brush-overlay");
-const brushCircle = document.getElementById("brush-circle");
 const brushDot = document.getElementById("brush-dot");
 
 const panel = document.getElementById("panel");
@@ -88,7 +87,7 @@ const windowMetrics = {
 };
 
 const pointerState = { x: 0, y: 0, active: false };
-let brushRadius = 12;
+const cursorDotRadius = 3;
 
 let boxGroup = null;
 let boxEdges = null;
@@ -219,10 +218,6 @@ function syncPanelToWindowResize() {
 function updateBrushOverlay(x, y, visible) {
   brushDot.setAttribute("cx", x);
   brushDot.setAttribute("cy", y);
-  brushCircle.setAttribute("cx", x);
-  brushCircle.setAttribute("cy", y);
-  brushCircle.setAttribute("r", brushRadius);
-  brushCircle.style.opacity = visible ? "0.45" : "0";
   brushDot.style.opacity = visible ? "1" : "0";
 }
 
@@ -321,7 +316,7 @@ function rebuildSeedPoints(count, dims, seed) {
 
   const size = Math.max(dims.x, dims.y, dims.z) / 120;
   const material = new THREE.PointsMaterial({
-    color: 0x836aff,
+    color: 0x6affb5,
     size,
     sizeAttenuation: true
   });
@@ -840,6 +835,7 @@ generateButton.addEventListener("click", () => rebuildPreview());
 resetButton.addEventListener("click", () => resetCamera());
 
 resizeRenderer();
+brushDot.setAttribute("r", cursorDotRadius);
 syncCubeToggle();
 rebuildPreview();
 animate();
