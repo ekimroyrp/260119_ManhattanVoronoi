@@ -101,6 +101,7 @@ const pointerState = { x: 0, y: 0, active: false };
 const cursorDotRadius = 3;
 const raycaster = new THREE.Raycaster();
 const pointerNdc = new THREE.Vector2();
+const activeScaleTweens = new Set();
 
 let boxGroup = null;
 let boxEdges = null;
@@ -118,6 +119,9 @@ let explodeDistance = 0;
 let middleClick = null;
 const hiddenSeeds = new Set();
 let lastSeedKey = "";
+const cellMeshesBySeed = new Map();
+const wireMeshesBySeed = new Map();
+const seedMeshesBySeed = new Map();
 
 function updateRange(input, output, formatter) {
   const value = Number(input.value);
@@ -181,16 +185,55 @@ function hideCell(seedIndex) {
   if (seedIndex === undefined || seedIndex === null) {
     return;
   }
+  if (hiddenSeeds.has(seedIndex)) {
+    return;
+  }
   hiddenSeeds.add(seedIndex);
-  if (cellsGroup?.children?.[seedIndex]) {
-    cellsGroup.children[seedIndex].visible = false;
+  startHideTween(cellMeshesBySeed.get(seedIndex));
+  startHideTween(wireMeshesBySeed.get(seedIndex));
+  startHideTween(seedMeshesBySeed.get(seedIndex));
+}
+
+function startHideTween(object, duration = 260) {
+  if (!object) {
+    return;
   }
-  if (wireframeGroup?.children?.[seedIndex]) {
-    wireframeGroup.children[seedIndex].visible = false;
+  if (object.userData.hideTween) {
+    return;
   }
-  if (seedPointMesh?.children?.[seedIndex]) {
-    seedPointMesh.children[seedIndex].visible = false;
+  if (!object.visible) {
+    object.scale.set(0, 0, 0);
+    return;
   }
+  object.userData.hideTween = {
+    startTime: performance.now(),
+    duration,
+    startScale: object.scale.x
+  };
+  activeScaleTweens.add(object);
+}
+
+function updateHideTweens() {
+  if (!activeScaleTweens.size) {
+    return;
+  }
+  const now = performance.now();
+  activeScaleTweens.forEach((object) => {
+    const tween = object.userData.hideTween;
+    if (!tween) {
+      activeScaleTweens.delete(object);
+      return;
+    }
+    const t = Math.min(1, (now - tween.startTime) / tween.duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const scale = tween.startScale * (1 - eased);
+    object.scale.set(scale, scale, scale);
+    if (t >= 1) {
+      object.visible = false;
+      object.userData.hideTween = null;
+      activeScaleTweens.delete(object);
+    }
+  });
 }
 
 function applyExplode(distance) {
@@ -204,7 +247,11 @@ function applyExplode(distance) {
       if (!dir) {
         return;
       }
-      mesh.position.set(dir.x * explodeDistance, dir.y * explodeDistance, dir.z * explodeDistance);
+      mesh.position.set(
+        dir.x * explodeDistance + (mesh.userData.basePosition?.x ?? 0),
+        dir.y * explodeDistance + (mesh.userData.basePosition?.y ?? 0),
+        dir.z * explodeDistance + (mesh.userData.basePosition?.z ?? 0)
+      );
     });
   };
   updateGroup(cellsGroup);
@@ -374,6 +421,7 @@ function rebuildBox(dims) {
 
 function rebuildSeedPoints(count, dims, seed) {
   disposeObject(seedPointMesh);
+  seedMeshesBySeed.clear();
 
   const rng = createRng(seed);
   const halfX = dims.x * 0.5;
@@ -397,12 +445,16 @@ function rebuildSeedPoints(count, dims, seed) {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute(
       "position",
-      new THREE.Float32BufferAttribute([x, y, z], 3)
+      new THREE.Float32BufferAttribute([0, 0, 0], 3)
     );
     const point = new THREE.Points(geometry, material);
     point.userData.seedIndex = i;
-    point.visible = !hiddenSeeds.has(i);
+    point.position.set(x, y, z);
+    const isHidden = hiddenSeeds.has(i);
+    point.visible = !isHidden;
+    point.scale.setScalar(isHidden ? 0 : 1);
     group.add(point);
+    seedMeshesBySeed.set(i, point);
   }
 
   seedPointMesh = group;
@@ -780,6 +832,9 @@ function getCellMaterial(index, total) {
 function rebuildCells(dims, density, smoothing) {
   disposeObject(cellsGroup);
   disposeObject(wireframeGroup);
+  activeScaleTweens.clear();
+  cellMeshesBySeed.clear();
+  wireMeshesBySeed.clear();
   if (!seedPoints.length) {
     return { cells: 0, triangles: 0, vertices: 0 };
   }
@@ -827,14 +882,24 @@ function rebuildCells(dims, density, smoothing) {
     const dir = center.lengthSq() > 0 ? center.clone().normalize() : new THREE.Vector3();
     mesh.userData.explodeDir = dir;
     mesh.userData.seedIndex = i;
-    mesh.visible = !hiddenSeeds.has(i);
+    mesh.position.copy(center);
+    mesh.userData.basePosition = center.clone();
+    geometry.translate(-center.x, -center.y, -center.z);
+    const isHidden = hiddenSeeds.has(i);
+    mesh.visible = !isHidden;
+    mesh.scale.setScalar(isHidden ? 0 : 1);
     group.add(mesh);
+    cellMeshesBySeed.set(i, mesh);
 
     const wireMesh = new THREE.Mesh(geometry, wireframeMaterial);
     wireMesh.userData.explodeDir = dir;
     wireMesh.userData.seedIndex = i;
-    wireMesh.visible = !hiddenSeeds.has(i);
+    wireMesh.position.copy(center);
+    wireMesh.userData.basePosition = center.clone();
+    wireMesh.visible = !isHidden;
+    wireMesh.scale.setScalar(isHidden ? 0 : 1);
     wireGroup.add(wireMesh);
+    wireMeshesBySeed.set(i, wireMesh);
 
     const vertexCount = geometry.getAttribute("position").count;
     const triangleCount = geometry.index
@@ -913,6 +978,7 @@ function resizeRenderer() {
 
 function animate() {
   controls.update();
+  updateHideTweens();
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
