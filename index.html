@@ -39,12 +39,14 @@
           </div>
         </div>
         <div class="panel-section">
-          <label class="label">Mesh Density <span id="density-value"></span></label>
-          <input id="density" type="range" min="8" max="128" step="1" value="48" />
-        </div>
-        <div class="panel-section">
-          <label class="label">Smoothing <span id="smooth-value"></span></label>
-          <input id="smoothing" type="range" min="0" max="40" step="1" value="0" />
+          <div class="range-stack">
+            <label class="label">Resolution <span id="density-value"></span></label>
+            <input id="density" type="range" min="8" max="128" step="1" value="48" />
+          </div>
+          <div class="range-stack">
+            <label class="label">Smooth <span id="smooth-value"></span></label>
+            <input id="smoothing" type="range" min="0" max="40" step="1" value="0" />
+          </div>
         </div>
         <div class="panel-section toggle-row">
           <div class="label label-displacement">Box</div>

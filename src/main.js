@@ -6,17 +6,20 @@ import {
   triTable as TRI_TABLE
 } from "three/examples/jsm/objects/MarchingCubes.js";
 import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
+import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
+import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 
 const host = document.querySelector("#canvas-host");
 const scene = new THREE.Scene();
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 const initialWidth = host.clientWidth || window.innerWidth;
 const initialHeight = host.clientHeight || window.innerHeight;
 renderer.setSize(initialWidth, initialHeight, false);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.setClearColor(0x0e0f13, 1);
+renderer.setClearColor(0x000000, 0);
 host.appendChild(renderer.domElement);
 
 const camera = new THREE.PerspectiveCamera(
@@ -92,6 +95,7 @@ let brushRadius = 12;
 
 let boxGroup = null;
 let boxEdges = null;
+let boxEdgeMaterial = null;
 let seedPointMesh = null;
 let cellsGroup = null;
 let seedPoints = [];
@@ -266,6 +270,7 @@ function getBoxDims() {
 
 function rebuildBox(dims) {
   disposeObject(boxGroup);
+  boxEdgeMaterial = null;
 
   const geometry = new THREE.BoxGeometry(dims.x, dims.y, dims.z);
   const fillMaterial = new THREE.MeshStandardMaterial({
@@ -275,19 +280,29 @@ function rebuildBox(dims) {
     transparent: true,
     opacity: 0.12
   });
-  const edgeMaterial = new THREE.LineBasicMaterial({
-    color: 0x3a4356,
+  const edgeGeometry = new THREE.EdgesGeometry(geometry);
+  const lineGeometry = new LineSegmentsGeometry();
+  lineGeometry.fromEdgesGeometry(edgeGeometry);
+  edgeGeometry.dispose();
+  const edgeMaterial = new LineMaterial({
+    color: 0x6c7280,
     transparent: true,
-    opacity: 0.9
+    opacity: 0.6,
+    linewidth: 2
   });
+  edgeMaterial.resolution.set(
+    host.clientWidth || window.innerWidth,
+    host.clientHeight || window.innerHeight
+  );
 
   const mesh = new THREE.Mesh(geometry, fillMaterial);
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), edgeMaterial);
+  const edges = new LineSegments2(lineGeometry, edgeMaterial);
   edges.visible = showBoxEdges;
 
   boxGroup = new THREE.Group();
   boxGroup.add(mesh, edges);
   boxEdges = edges;
+  boxEdgeMaterial = edgeMaterial;
   scene.add(boxGroup);
 }
 
@@ -756,6 +771,9 @@ function resizeRenderer() {
   camera.updateProjectionMatrix();
   brushOverlay.setAttribute("width", width);
   brushOverlay.setAttribute("height", height);
+  if (boxEdgeMaterial) {
+    boxEdgeMaterial.resolution.set(width, height);
+  }
 }
 
 function animate() {
