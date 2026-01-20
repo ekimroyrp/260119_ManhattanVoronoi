@@ -28,7 +28,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   600
 );
-camera.position.set(14, 12, 14);
+camera.position.set(1.78 * 10, 2.1 * 10, 4.29 * 10);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -41,9 +41,6 @@ keyLight.position.set(6, 8, 4);
 const fillLight = new THREE.DirectionalLight(0xffffff, 0.35);
 fillLight.position.set(-4, -2, -6);
 scene.add(ambient, keyLight, fillLight);
-
-const axes = new THREE.AxesHelper(6);
-scene.add(axes);
 
 const brushOverlay = document.getElementById("brush-overlay");
 const brushCircle = document.getElementById("brush-circle");
@@ -755,10 +752,9 @@ function scheduleRebuild(delay = 160) {
 }
 
 function resetCamera() {
-  const dims = getBoxDims();
-  const maxDim = Math.max(dims.x, dims.y, dims.z);
-  const distance = maxDim * 1.4;
-  camera.position.set(distance, distance * 0.85, distance);
+  camera.position.set(1.78 * 10, 2.1 * 10, 4.29 * 10);
+  camera.zoom = 1;
+  camera.updateProjectionMatrix();
   controls.target.set(0, 0, 0);
   controls.update();
 }
