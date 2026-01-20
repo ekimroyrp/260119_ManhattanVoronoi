@@ -477,23 +477,23 @@ input[type="range"]::-moz-range-thumb {
   width: 24px;
   height: 24px;
   border-radius: 14px;
+  background: #1e1f25;
+  box-shadow:
+    0 6px 14px rgba(0, 0, 0, 0.5),
+    inset 2px 2px 4px rgba(255, 255, 255, 0.06),
+    inset -3px -3px 6px rgba(0, 0, 0, 0.35),
+    0 0 10px rgba(108, 247, 177, 0.3);
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.toggle input:checked + .toggle-slider {
+  transform: translateX(30px);
   background: linear-gradient(90deg, var(--accent), #6cf7b1);
   box-shadow:
     0 6px 14px rgba(40, 240, 139, 0.35),
     inset 2px 2px 4px rgba(255, 255, 255, 0.1),
     inset -3px -3px 6px rgba(0, 0, 0, 0.35),
     0 0 10px rgba(40, 240, 139, 0.6);
-  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-}
-
-.toggle input:checked + .toggle-slider {
-  transform: translateX(30px);
-  background: #1e1f25;
-  box-shadow:
-    0 6px 14px rgba(0, 0, 0, 0.5),
-    inset 2px 2px 4px rgba(255, 255, 255, 0.06),
-    inset -3px -3px 6px rgba(0, 0, 0, 0.35),
-    0 0 10px rgba(108, 247, 177, 0.7);
 }
 
 .toggle-labels {

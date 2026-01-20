@@ -164,7 +164,7 @@ function updateMeshStats(stats) {
 }
 
 function syncCubeToggle() {
-  cubeToggle.checked = !showBoxEdges;
+  cubeToggle.checked = showBoxEdges;
   if (boxEdges) {
     boxEdges.visible = showBoxEdges;
   }
@@ -174,18 +174,18 @@ function syncCubeToggle() {
 }
 
 function syncColorsToggle() {
-  colorsToggle.checked = !colorsEnabled;
+  colorsToggle.checked = colorsEnabled;
 }
 
 function syncCellsToggle() {
-  cellsToggle.checked = !cellsVisible;
+  cellsToggle.checked = cellsVisible;
   if (cellsGroup) {
     cellsGroup.visible = cellsVisible;
   }
 }
 
 function syncWireframeToggle() {
-  wireframeToggle.checked = !wireframeEnabled;
+  wireframeToggle.checked = wireframeEnabled;
   if (wireframeGroup) {
     wireframeGroup.visible = wireframeEnabled;
   }
@@ -1268,20 +1268,20 @@ explodeInput.addEventListener("input", () => {
 });
 
 cubeToggle.addEventListener("change", (event) => {
-  showBoxEdges = !event.target.checked;
+  showBoxEdges = event.target.checked;
   syncCubeToggle();
 });
 colorsToggle.addEventListener("change", (event) => {
-  colorsEnabled = !event.target.checked;
+  colorsEnabled = event.target.checked;
   syncColorsToggle();
   scheduleRebuild(0);
 });
 cellsToggle.addEventListener("change", (event) => {
-  cellsVisible = !event.target.checked;
+  cellsVisible = event.target.checked;
   syncCellsToggle();
 });
 wireframeToggle.addEventListener("change", (event) => {
-  wireframeEnabled = !event.target.checked;
+  wireframeEnabled = event.target.checked;
   syncWireframeToggle();
 });
 generateButton.addEventListener("click", () => resetCamera());
