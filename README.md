@@ -15,5 +15,6 @@
 - Drag the panel header to reposition the UI.
 - Use the sliders for box X/Y/Z, points, seed, resolution, smooth, and explode.
 - Click `Reframe` to smoothly reset the camera and `Unhide` to restore hidden cells.
+- `Undo`/`Redo` step through hidden-cell history.
 - Orbit controls: LMB rotate, MMB/scroll dolly, RMB pan.
 - MMB on a cell hides it and its seed point.

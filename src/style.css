@@ -113,6 +113,10 @@ body {
   width: auto;
 }
 
+.action-row + .action-row {
+  margin-top: 10px;
+}
+
 .ui-panel {
   position: fixed;
   top: 24px;

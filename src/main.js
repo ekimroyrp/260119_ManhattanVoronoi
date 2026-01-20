@@ -84,6 +84,8 @@ const cellsToggle = document.getElementById("cells-toggle");
 const wireframeToggle = document.getElementById("wireframe-toggle");
 const generateButton = document.getElementById("generate");
 const resetButton = document.getElementById("reset-camera");
+const undoButton = document.getElementById("undo-action");
+const redoButton = document.getElementById("redo-action");
 
 const boxXValue = document.getElementById("box-x-value");
 const boxYValue = document.getElementById("box-y-value");
@@ -143,6 +145,9 @@ let lastSeedKey = "";
 const cellMeshesBySeed = new Map();
 const wireMeshesBySeed = new Map();
 const seedMeshesBySeed = new Map();
+const historyLimit = 50;
+let hideHistory = [new Set()];
+let redoHistory = [];
 
 function updateRange(input, output, formatter) {
   const value = Number(input.value);
@@ -202,6 +207,99 @@ function syncWireframeToggle() {
   }
 }
 
+function setsEqual(a, b) {
+  if (a.size !== b.size) {
+    return false;
+  }
+  for (const value of a) {
+    if (!b.has(value)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function resetHideHistory() {
+  hiddenSeeds.clear();
+  hideHistory = [new Set()];
+  redoHistory = [];
+}
+
+function pushHiddenHistory(nextHidden) {
+  const last = hideHistory[hideHistory.length - 1];
+  if (setsEqual(last, nextHidden)) {
+    return;
+  }
+  hideHistory.push(new Set(nextHidden));
+  if (hideHistory.length > historyLimit) {
+    hideHistory.shift();
+  }
+  redoHistory = [];
+}
+
+function applyHiddenState(nextHidden, animate = true) {
+  const targetHidden = nextHidden ?? new Set();
+  const union = new Set([...hiddenSeeds, ...targetHidden]);
+  union.forEach((seedIndex) => {
+    const shouldHide = targetHidden.has(seedIndex);
+    const isHidden = hiddenSeeds.has(seedIndex);
+    if (shouldHide === isHidden) {
+      return;
+    }
+    if (shouldHide) {
+      if (animate) {
+        startScaleTween(cellMeshesBySeed.get(seedIndex), 0, true);
+        startScaleTween(wireMeshesBySeed.get(seedIndex), 0, true);
+        startScaleTween(seedMeshesBySeed.get(seedIndex), 0, true);
+      } else {
+        hideImmediate(seedIndex);
+      }
+    } else if (animate) {
+      startScaleTween(cellMeshesBySeed.get(seedIndex), 1, false);
+      startScaleTween(wireMeshesBySeed.get(seedIndex), 1, false);
+      startScaleTween(seedMeshesBySeed.get(seedIndex), 1, false);
+    } else {
+      showImmediate(seedIndex);
+    }
+  });
+  hiddenSeeds.clear();
+  targetHidden.forEach((seedIndex) => hiddenSeeds.add(seedIndex));
+}
+
+function hideImmediate(seedIndex) {
+  const targetMeshes = [
+    cellMeshesBySeed.get(seedIndex),
+    wireMeshesBySeed.get(seedIndex),
+    seedMeshesBySeed.get(seedIndex)
+  ];
+  targetMeshes.forEach((mesh) => {
+    if (!mesh) {
+      return;
+    }
+    mesh.scale.setScalar(0);
+    mesh.visible = false;
+    mesh.userData.scaleTween = null;
+    activeScaleTweens.delete(mesh);
+  });
+}
+
+function showImmediate(seedIndex) {
+  const targetMeshes = [
+    cellMeshesBySeed.get(seedIndex),
+    wireMeshesBySeed.get(seedIndex),
+    seedMeshesBySeed.get(seedIndex)
+  ];
+  targetMeshes.forEach((mesh) => {
+    if (!mesh) {
+      return;
+    }
+    mesh.visible = true;
+    mesh.scale.setScalar(1);
+    mesh.userData.scaleTween = null;
+    activeScaleTweens.delete(mesh);
+  });
+}
+
 function hideCell(seedIndex) {
   if (seedIndex === undefined || seedIndex === null) {
     return;
@@ -209,28 +307,51 @@ function hideCell(seedIndex) {
   if (hiddenSeeds.has(seedIndex)) {
     return;
   }
-  hiddenSeeds.add(seedIndex);
-  startScaleTween(cellMeshesBySeed.get(seedIndex), 0, true);
-  startScaleTween(wireMeshesBySeed.get(seedIndex), 0, true);
-  startScaleTween(seedMeshesBySeed.get(seedIndex), 0, true);
-}
-
-function unhideCell(seedIndex) {
-  if (seedIndex === undefined || seedIndex === null) {
-    return;
-  }
-  hiddenSeeds.delete(seedIndex);
-  startScaleTween(cellMeshesBySeed.get(seedIndex), 1, false);
-  startScaleTween(wireMeshesBySeed.get(seedIndex), 1, false);
-  startScaleTween(seedMeshesBySeed.get(seedIndex), 1, false);
+  const nextHidden = new Set(hiddenSeeds);
+  nextHidden.add(seedIndex);
+  applyHiddenState(nextHidden, true);
+  pushHiddenHistory(nextHidden);
 }
 
 function unhideAllCells() {
   if (!hiddenSeeds.size) {
     return;
   }
-  Array.from(hiddenSeeds).forEach((seedIndex) => unhideCell(seedIndex));
-  hiddenSeeds.clear();
+  const nextHidden = new Set();
+  applyHiddenState(nextHidden, true);
+  pushHiddenHistory(nextHidden);
+}
+
+function undoHiddenState() {
+  if (hideHistory.length <= 1) {
+    return;
+  }
+  const current = hideHistory.pop();
+  if (current) {
+    redoHistory.push(current);
+    if (redoHistory.length > historyLimit) {
+      redoHistory.shift();
+    }
+  }
+  const prev = hideHistory[hideHistory.length - 1];
+  if (prev) {
+    applyHiddenState(prev, true);
+  }
+}
+
+function redoHiddenState() {
+  if (!redoHistory.length) {
+    return;
+  }
+  const next = redoHistory.pop();
+  if (!next) {
+    return;
+  }
+  hideHistory.push(new Set(next));
+  if (hideHistory.length > historyLimit) {
+    hideHistory.shift();
+  }
+  applyHiddenState(next, true);
 }
 
 function startScaleTween(object, targetScale, hideOnComplete, duration = 260) {
@@ -238,7 +359,8 @@ function startScaleTween(object, targetScale, hideOnComplete, duration = 260) {
     return;
   }
   if (object.userData.scaleTween) {
-    return;
+    object.userData.scaleTween = null;
+    activeScaleTweens.delete(object);
   }
   if (targetScale > 0) {
     object.visible = true;
@@ -983,7 +1105,7 @@ function rebuildPreview() {
   const smoothing = Math.max(0, Math.round(Number(smoothingInput.value) || 0));
   const seedKey = `${pointCount}-${seed}-${dims.x}-${dims.y}-${dims.z}`;
   if (seedKey !== lastSeedKey) {
-    hiddenSeeds.clear();
+    resetHideHistory();
     lastSeedKey = seedKey;
   }
 
@@ -1180,6 +1302,8 @@ wireframeToggle.addEventListener("change", (event) => {
 });
 generateButton.addEventListener("click", () => resetCamera());
 resetButton.addEventListener("click", () => unhideAllCells());
+undoButton.addEventListener("click", () => undoHiddenState());
+redoButton.addEventListener("click", () => redoHiddenState());
 
 resizeRenderer();
 brushDot.setAttribute("r", cursorDotRadius);
