@@ -58,6 +58,7 @@ const densityInput = document.getElementById("density");
 const smoothingInput = document.getElementById("smoothing");
 const cubeToggle = document.getElementById("cube-toggle");
 const colorsToggle = document.getElementById("colors-toggle");
+const cellsToggle = document.getElementById("cells-toggle");
 const generateButton = document.getElementById("generate");
 const resetButton = document.getElementById("reset-camera");
 
@@ -72,6 +73,8 @@ const cubeOn = document.getElementById("cube-on");
 const cubeOff = document.getElementById("cube-off");
 const colorsOn = document.getElementById("colors-on");
 const colorsOff = document.getElementById("colors-off");
+const cellsOn = document.getElementById("cells-on");
+const cellsOff = document.getElementById("cells-off");
 const meshStats = document.getElementById("mesh-stats");
 
 const ISO_LEVEL = 0.5;
@@ -101,6 +104,7 @@ let seedPoints = [];
 let rebuildTimer = null;
 let showBoxEdges = true;
 let colorsEnabled = true;
+let cellsVisible = true;
 
 function updateRange(input, output) {
   const value = Number(input.value);
@@ -138,6 +142,15 @@ function syncColorsToggle() {
   colorsToggle.checked = !colorsEnabled;
   colorsOn.classList.toggle("active", colorsEnabled);
   colorsOff.classList.toggle("active", !colorsEnabled);
+}
+
+function syncCellsToggle() {
+  cellsToggle.checked = !cellsVisible;
+  cellsOn.classList.toggle("active", cellsVisible);
+  cellsOff.classList.toggle("active", !cellsVisible);
+  if (cellsGroup) {
+    cellsGroup.visible = cellsVisible;
+  }
 }
 
 function getPanelScale(rect) {
@@ -743,6 +756,7 @@ function rebuildCells(dims, density, smoothing) {
   }
 
   cellsGroup = group;
+  cellsGroup.visible = cellsVisible;
   scene.add(cellsGroup);
 
   return {
@@ -853,6 +867,10 @@ colorsToggle.addEventListener("change", (event) => {
   syncColorsToggle();
   scheduleRebuild(0);
 });
+cellsToggle.addEventListener("change", (event) => {
+  cellsVisible = !event.target.checked;
+  syncCellsToggle();
+});
 generateButton.addEventListener("click", () => rebuildPreview());
 resetButton.addEventListener("click", () => resetCamera());
 
@@ -860,5 +878,6 @@ resizeRenderer();
 brushDot.setAttribute("r", cursorDotRadius);
 syncCubeToggle();
 syncColorsToggle();
+syncCellsToggle();
 rebuildPreview();
 animate();
