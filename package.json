@@ -1,0 +1,29 @@
+{
+  "name": "260119_manhattanvoronoi",
+  "version": "0.1.0",
+  "description": "260119_ManhattanVoronoi is a three.js exploration of 3D Manhattan Voronoi cells inside a configurable box.",
+  "main": "src/main.js",
+  "scripts": {
+    "test": "echo \"No tests specified\" && exit 1",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ekimroyrp/260119_ManhattanVoronoi.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ekimroyrp/260119_ManhattanVoronoi/issues"
+  },
+  "homepage": "https://github.com/ekimroyrp/260119_ManhattanVoronoi#readme",
+  "dependencies": {
+    "three": "^0.182.0"
+  },
+  "devDependencies": {
+    "vite": "^7.3.1"
+  }
+}

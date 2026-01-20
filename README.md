@@ -1,16 +1,18 @@
 # 260119_ManhattanVoronoi
 
-260119_ManhattanVoronoi is a focused project to explore Manhattan-distance Voronoi diagrams, capturing the geometry, algorithms, and visual outputs around L1 metric partitions.
+260119_ManhattanVoronoi is a three.js project for generating 3D Manhattan-distance Voronoi cells inside a configurable box, with a stylized floating UI and seeded point preview.
 
 ## Features
-- Manhattan (L1) Voronoi diagram exploration and reference implementation
-- Reproducible inputs and outputs for testing and comparison
-- Clear, minimal structure for adding generators, renderers, and experiments
+- Three.js scene scaffold with box bounds and seeded point preview
+- Floating UI matching the BooleanCube styling and cursor overlay
+- Adjustable box dimensions, seed count, seed value, density, and smoothing controls
 
 ## Getting Started
-1. Clone the repository.
-2. Open the project folder in your editor.
-3. Run the generator or scripts once they are added to produce outputs.
+1. Run `npm install`.
+2. Start the dev server with `npm run dev`.
 
 ## Controls
-- None yet. Controls and run commands will be documented as they are implemented.
+- Drag the panel header to reposition the UI.
+- Use the sliders for box X/Y/Z, points, seed, density, and smoothing.
+- Click `Generate` to rebuild the preview and `Reset` to reframe the camera.
+- Orbit controls: LMB rotate, MMB/scroll dolly, RMB pan.

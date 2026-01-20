@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>260119_ManhattanVoronoi</title>
+  </head>
+  <body>
+    <div id="app">
+      <div id="canvas-host"></div>
+      <svg id="brush-overlay" aria-hidden="true">
+        <circle id="brush-circle" />
+        <circle id="brush-dot" />
+      </svg>
+      <div class="ui-panel" id="panel">
+        <div class="panel-header" id="panel-handle"></div>
+        <div class="panel-section">
+          <div class="range-stack">
+            <label class="label">Box X <span id="box-x-value"></span></label>
+            <input id="box-x" type="range" min="4" max="48" step="1" value="20" />
+          </div>
+          <div class="range-stack">
+            <label class="label">Box Y <span id="box-y-value"></span></label>
+            <input id="box-y" type="range" min="4" max="48" step="1" value="20" />
+          </div>
+          <div class="range-stack">
+            <label class="label">Box Z <span id="box-z-value"></span></label>
+            <input id="box-z" type="range" min="4" max="48" step="1" value="20" />
+          </div>
+        </div>
+        <div class="panel-section">
+          <div class="range-stack">
+            <label class="label">Points <span id="points-value"></span></label>
+            <input id="points" type="range" min="2" max="64" step="1" value="16" />
+          </div>
+          <div class="range-stack">
+            <label class="label">Seed <span id="seed-value"></span></label>
+            <input id="seed" type="range" min="0" max="9999" step="1" value="1337" />
+          </div>
+        </div>
+        <div class="panel-section">
+          <label class="label">Mesh Density <span id="density-value"></span></label>
+          <input id="density" type="range" min="8" max="128" step="1" value="48" />
+        </div>
+        <div class="panel-section">
+          <label class="label">Smoothing <span id="smooth-value"></span></label>
+          <input id="smoothing" type="range" min="0" max="40" step="1" value="0" />
+        </div>
+        <div class="panel-section">
+          <div class="action-row">
+            <button id="generate" class="action-button">Generate</button>
+            <button id="reset-camera" class="action-button">Reset</button>
+          </div>
+        </div>
+        <div class="panel-section">
+          <div id="mesh-stats" class="mesh-stats-value">Seeds: -- | Density: --</div>
+        </div>
+        <div class="panel-header" id="panel-handle-bottom"></div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
