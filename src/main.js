@@ -95,14 +95,6 @@ const seedValue = document.getElementById("seed-value");
 const densityValue = document.getElementById("density-value");
 const smoothValue = document.getElementById("smooth-value");
 const explodeValue = document.getElementById("explode-value");
-const cubeOn = document.getElementById("cube-on");
-const cubeOff = document.getElementById("cube-off");
-const colorsOn = document.getElementById("colors-on");
-const colorsOff = document.getElementById("colors-off");
-const cellsOn = document.getElementById("cells-on");
-const cellsOff = document.getElementById("cells-off");
-const wfOn = document.getElementById("wf-on");
-const wfOff = document.getElementById("wf-off");
 const meshStats = document.getElementById("mesh-stats");
 
 const ISO_LEVEL = 0.5;
@@ -173,8 +165,6 @@ function updateMeshStats(stats) {
 
 function syncCubeToggle() {
   cubeToggle.checked = !showBoxEdges;
-  cubeOn.classList.toggle("active", showBoxEdges);
-  cubeOff.classList.toggle("active", !showBoxEdges);
   if (boxEdges) {
     boxEdges.visible = showBoxEdges;
   }
@@ -185,14 +175,10 @@ function syncCubeToggle() {
 
 function syncColorsToggle() {
   colorsToggle.checked = !colorsEnabled;
-  colorsOn.classList.toggle("active", colorsEnabled);
-  colorsOff.classList.toggle("active", !colorsEnabled);
 }
 
 function syncCellsToggle() {
   cellsToggle.checked = !cellsVisible;
-  cellsOn.classList.toggle("active", cellsVisible);
-  cellsOff.classList.toggle("active", !cellsVisible);
   if (cellsGroup) {
     cellsGroup.visible = cellsVisible;
   }
@@ -200,8 +186,6 @@ function syncCellsToggle() {
 
 function syncWireframeToggle() {
   wireframeToggle.checked = !wireframeEnabled;
-  wfOn.classList.toggle("active", wireframeEnabled);
-  wfOff.classList.toggle("active", !wireframeEnabled);
   if (wireframeGroup) {
     wireframeGroup.visible = wireframeEnabled;
   }

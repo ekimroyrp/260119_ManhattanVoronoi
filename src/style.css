@@ -439,11 +439,11 @@ input[type="range"]::-moz-range-thumb {
   align-items: flex-start;
   justify-content: flex-start;
   gap: 6px;
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
 .toggle-row + .toggle-row {
-  margin-top: 12px;
+  margin-top: 16px;
 }
 
 .toggle-row .toggle {
