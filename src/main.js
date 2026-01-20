@@ -269,15 +269,9 @@ function rebuildBox(dims) {
   disposeObject(boxGroup);
   boxEdgeMaterial = null;
 
-  const geometry = new THREE.BoxGeometry(dims.x, dims.y, dims.z);
-  const fillMaterial = new THREE.MeshStandardMaterial({
-    color: 0x1b1d24,
-    metalness: 0.2,
-    roughness: 0.6,
-    transparent: true,
-    opacity: 0.12
-  });
-  const edgeGeometry = new THREE.EdgesGeometry(geometry);
+  const boxGeometry = new THREE.BoxGeometry(dims.x, dims.y, dims.z);
+  const edgeGeometry = new THREE.EdgesGeometry(boxGeometry);
+  boxGeometry.dispose();
   const lineGeometry = new LineSegmentsGeometry();
   lineGeometry.fromEdgesGeometry(edgeGeometry);
   edgeGeometry.dispose();
@@ -292,12 +286,11 @@ function rebuildBox(dims) {
     host.clientHeight || window.innerHeight
   );
 
-  const mesh = new THREE.Mesh(geometry, fillMaterial);
   const edges = new LineSegments2(lineGeometry, edgeMaterial);
   edges.visible = showBoxEdges;
 
   boxGroup = new THREE.Group();
-  boxGroup.add(mesh, edges);
+  boxGroup.add(edges);
   boxEdges = edges;
   boxEdgeMaterial = edgeMaterial;
   scene.add(boxGroup);
@@ -634,6 +627,25 @@ function smoothGeometry(geometry, iterations) {
   return working;
 }
 
+function clampGeometryToBounds(geometry, bounds) {
+  if (!geometry || !bounds) {
+    return geometry;
+  }
+  const position = geometry.getAttribute("position");
+  if (!position) {
+    return geometry;
+  }
+  const { x: halfX, y: halfY, z: halfZ } = bounds;
+  const array = position.array;
+  for (let i = 0; i < array.length; i += 3) {
+    array[i] = Math.max(-halfX, Math.min(halfX, array[i]));
+    array[i + 1] = Math.max(-halfY, Math.min(halfY, array[i + 1]));
+    array[i + 2] = Math.max(-halfZ, Math.min(halfZ, array[i + 2]));
+  }
+  position.needsUpdate = true;
+  return geometry;
+}
+
 function flipGeometryNormals(geometry) {
   if (!geometry) {
     return geometry;
@@ -684,6 +696,7 @@ function rebuildCells(dims, density, smoothing) {
     return { cells: 0, triangles: 0, vertices: 0 };
   }
 
+  const bounds = { x: dims.x * 0.5, y: dims.y * 0.5, z: dims.z * 0.5 };
   const grid = buildGrid(dims, density);
   const assignment = buildVoronoiAssignment(seedPoints, grid, dims);
   const group = new THREE.Group();
@@ -701,6 +714,7 @@ function rebuildCells(dims, density, smoothing) {
       baseGeometry.dispose();
     }
     geometry = smoothGeometry(geometry, smoothing);
+    geometry = clampGeometryToBounds(geometry, bounds);
     geometry = flipGeometryNormals(geometry);
     geometry.computeVertexNormals();
 
