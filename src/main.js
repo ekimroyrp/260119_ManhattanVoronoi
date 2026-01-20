@@ -59,6 +59,7 @@ const smoothingInput = document.getElementById("smoothing");
 const cubeToggle = document.getElementById("cube-toggle");
 const colorsToggle = document.getElementById("colors-toggle");
 const cellsToggle = document.getElementById("cells-toggle");
+const wireframeToggle = document.getElementById("wireframe-toggle");
 const generateButton = document.getElementById("generate");
 const resetButton = document.getElementById("reset-camera");
 
@@ -75,6 +76,8 @@ const colorsOn = document.getElementById("colors-on");
 const colorsOff = document.getElementById("colors-off");
 const cellsOn = document.getElementById("cells-on");
 const cellsOff = document.getElementById("cells-off");
+const wfOn = document.getElementById("wf-on");
+const wfOff = document.getElementById("wf-off");
 const meshStats = document.getElementById("mesh-stats");
 
 const ISO_LEVEL = 0.5;
@@ -100,11 +103,13 @@ let boxEdges = null;
 let boxEdgeMaterial = null;
 let seedPointMesh = null;
 let cellsGroup = null;
+let wireframeGroup = null;
 let seedPoints = [];
 let rebuildTimer = null;
 let showBoxEdges = true;
 let colorsEnabled = true;
 let cellsVisible = true;
+let wireframeEnabled = false;
 
 function updateRange(input, output) {
   const value = Number(input.value);
@@ -150,6 +155,15 @@ function syncCellsToggle() {
   cellsOff.classList.toggle("active", !cellsVisible);
   if (cellsGroup) {
     cellsGroup.visible = cellsVisible;
+  }
+}
+
+function syncWireframeToggle() {
+  wireframeToggle.checked = !wireframeEnabled;
+  wfOn.classList.toggle("active", wireframeEnabled);
+  wfOff.classList.toggle("active", !wireframeEnabled);
+  if (wireframeGroup) {
+    wireframeGroup.visible = wireframeEnabled;
   }
 }
 
@@ -717,6 +731,7 @@ function getCellMaterial(index, total) {
 
 function rebuildCells(dims, density, smoothing) {
   disposeObject(cellsGroup);
+  disposeObject(wireframeGroup);
   if (!seedPoints.length) {
     return { cells: 0, triangles: 0, vertices: 0 };
   }
@@ -725,6 +740,17 @@ function rebuildCells(dims, density, smoothing) {
   const grid = buildGrid(dims, density);
   const assignment = buildVoronoiAssignment(seedPoints, grid, dims);
   const group = new THREE.Group();
+  const wireGroup = new THREE.Group();
+  const wireframeMaterial = new THREE.MeshBasicMaterial({
+    color: 0x555a63,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.7,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1
+  });
 
   let totalTriangles = 0;
   let totalVertices = 0;
@@ -747,6 +773,9 @@ function rebuildCells(dims, density, smoothing) {
     const mesh = new THREE.Mesh(geometry, material);
     group.add(mesh);
 
+    const wireMesh = new THREE.Mesh(geometry, wireframeMaterial);
+    wireGroup.add(wireMesh);
+
     const vertexCount = geometry.getAttribute("position").count;
     const triangleCount = geometry.index
       ? geometry.index.count / 3
@@ -758,6 +787,10 @@ function rebuildCells(dims, density, smoothing) {
   cellsGroup = group;
   cellsGroup.visible = cellsVisible;
   scene.add(cellsGroup);
+
+  wireframeGroup = wireGroup;
+  wireframeGroup.visible = wireframeEnabled;
+  scene.add(wireframeGroup);
 
   return {
     cells: group.children.length,
@@ -871,6 +904,10 @@ cellsToggle.addEventListener("change", (event) => {
   cellsVisible = !event.target.checked;
   syncCellsToggle();
 });
+wireframeToggle.addEventListener("change", (event) => {
+  wireframeEnabled = !event.target.checked;
+  syncWireframeToggle();
+});
 generateButton.addEventListener("click", () => rebuildPreview());
 resetButton.addEventListener("click", () => resetCamera());
 
@@ -879,5 +916,6 @@ brushDot.setAttribute("r", cursorDotRadius);
 syncCubeToggle();
 syncColorsToggle();
 syncCellsToggle();
+syncWireframeToggle();
 rebuildPreview();
 animate();
