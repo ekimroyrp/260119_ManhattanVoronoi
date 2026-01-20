@@ -116,6 +116,8 @@ let cellsVisible = true;
 let wireframeEnabled = false;
 let explodeDistance = 0;
 let middleClick = null;
+const hiddenSeeds = new Set();
+let lastSeedKey = "";
 
 function updateRange(input, output, formatter) {
   const value = Number(input.value);
@@ -180,6 +182,7 @@ function hideCell(seedIndex) {
   if (seedIndex === undefined || seedIndex === null) {
     return;
   }
+  hiddenSeeds.add(seedIndex);
   if (cellsGroup?.children?.[seedIndex]) {
     cellsGroup.children[seedIndex].visible = false;
   }
@@ -399,6 +402,7 @@ function rebuildSeedPoints(count, dims, seed) {
     );
     const point = new THREE.Points(geometry, material);
     point.userData.seedIndex = i;
+    point.visible = !hiddenSeeds.has(i);
     group.add(point);
   }
 
@@ -824,11 +828,13 @@ function rebuildCells(dims, density, smoothing) {
     const dir = center.lengthSq() > 0 ? center.clone().normalize() : new THREE.Vector3();
     mesh.userData.explodeDir = dir;
     mesh.userData.seedIndex = i;
+    mesh.visible = !hiddenSeeds.has(i);
     group.add(mesh);
 
     const wireMesh = new THREE.Mesh(geometry, wireframeMaterial);
     wireMesh.userData.explodeDir = dir;
     wireMesh.userData.seedIndex = i;
+    wireMesh.visible = !hiddenSeeds.has(i);
     wireGroup.add(wireMesh);
 
     const vertexCount = geometry.getAttribute("position").count;
@@ -861,6 +867,11 @@ function rebuildPreview() {
   const seed = Math.max(0, Number(seedInput.value) || 0);
   const density = Math.max(6, Number(densityInput.value) || 6);
   const smoothing = Math.max(0, Math.round(Number(smoothingInput.value) || 0));
+  const seedKey = `${pointCount}-${seed}-${dims.x}-${dims.y}-${dims.z}`;
+  if (seedKey !== lastSeedKey) {
+    hiddenSeeds.clear();
+    lastSeedKey = seedKey;
+  }
 
   rebuildBox(dims);
   rebuildSeedPoints(pointCount, dims, seed);
