@@ -39,10 +39,6 @@ const fillLight = new THREE.DirectionalLight(0xffffff, 0.35);
 fillLight.position.set(-4, -2, -6);
 scene.add(ambient, keyLight, fillLight);
 
-const grid = new THREE.GridHelper(80, 40, 0x2a3140, 0x161a22);
-grid.position.y = -0.01;
-scene.add(grid);
-
 const axes = new THREE.AxesHelper(6);
 scene.add(axes);
 
@@ -61,6 +57,7 @@ const pointsInput = document.getElementById("points");
 const seedInput = document.getElementById("seed");
 const densityInput = document.getElementById("density");
 const smoothingInput = document.getElementById("smoothing");
+const cubeToggle = document.getElementById("cube-toggle");
 const generateButton = document.getElementById("generate");
 const resetButton = document.getElementById("reset-camera");
 
@@ -71,6 +68,8 @@ const pointsValue = document.getElementById("points-value");
 const seedValue = document.getElementById("seed-value");
 const densityValue = document.getElementById("density-value");
 const smoothValue = document.getElementById("smooth-value");
+const cubeOn = document.getElementById("cube-on");
+const cubeOff = document.getElementById("cube-off");
 const meshStats = document.getElementById("mesh-stats");
 
 const ISO_LEVEL = 0.5;
@@ -92,10 +91,12 @@ const pointerState = { x: 0, y: 0, active: false };
 let brushRadius = 12;
 
 let boxGroup = null;
+let boxEdges = null;
 let seedPointMesh = null;
 let cellsGroup = null;
 let seedPoints = [];
 let rebuildTimer = null;
+let showBoxEdges = true;
 
 function updateRange(input, output) {
   const value = Number(input.value);
@@ -118,6 +119,15 @@ function updateMeshStats(stats) {
   const triangles = stats.triangles ?? "--";
   const vertices = stats.vertices ?? "--";
   meshStats.textContent = `Cells: ${cells} | Tris: ${triangles} | Verts: ${vertices}`;
+}
+
+function syncCubeToggle() {
+  cubeToggle.checked = !showBoxEdges;
+  cubeOn.classList.toggle("active", showBoxEdges);
+  cubeOff.classList.toggle("active", !showBoxEdges);
+  if (boxEdges) {
+    boxEdges.visible = showBoxEdges;
+  }
 }
 
 function getPanelScale(rect) {
@@ -273,9 +283,11 @@ function rebuildBox(dims) {
 
   const mesh = new THREE.Mesh(geometry, fillMaterial);
   const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), edgeMaterial);
+  edges.visible = showBoxEdges;
 
   boxGroup = new THREE.Group();
   boxGroup.add(mesh, edges);
+  boxEdges = edges;
   scene.add(boxGroup);
 }
 
@@ -792,9 +804,14 @@ rangeInputs.forEach(([input, output]) => {
   });
 });
 
+cubeToggle.addEventListener("change", (event) => {
+  showBoxEdges = !event.target.checked;
+  syncCubeToggle();
+});
 generateButton.addEventListener("click", () => rebuildPreview());
 resetButton.addEventListener("click", () => resetCamera());
 
 resizeRenderer();
+syncCubeToggle();
 rebuildPreview();
 animate();
