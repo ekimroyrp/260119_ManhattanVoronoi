@@ -438,6 +438,10 @@ input[type="range"]::-moz-range-thumb {
   margin-top: 6px;
 }
 
+.toggle-row + .toggle-row {
+  margin-top: 12px;
+}
+
 .toggle-row .toggle {
   align-self: flex-end;
   margin-top: -36px;

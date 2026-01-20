@@ -48,16 +48,29 @@
             <input id="smoothing" type="range" min="0" max="40" step="1" value="0" />
           </div>
         </div>
-        <div class="panel-section toggle-row">
-          <div class="label label-displacement">Box</div>
-          <div class="toggle-labels">
-            <span id="cube-on" class="toggle-text active">On</span>
-            <span id="cube-off" class="toggle-text">Off</span>
+        <div class="panel-section">
+          <div class="toggle-row">
+            <div class="label label-displacement">Box</div>
+            <div class="toggle-labels">
+              <span id="cube-on" class="toggle-text active">On</span>
+              <span id="cube-off" class="toggle-text">Off</span>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="cube-toggle" />
+              <span class="toggle-slider"></span>
+            </label>
           </div>
-          <label class="toggle">
-            <input type="checkbox" id="cube-toggle" />
-            <span class="toggle-slider"></span>
-          </label>
+          <div class="toggle-row">
+            <div class="label label-displacement">Colors</div>
+            <div class="toggle-labels">
+              <span id="colors-on" class="toggle-text active">On</span>
+              <span id="colors-off" class="toggle-text">Off</span>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="colors-toggle" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
         </div>
         <div class="panel-section">
           <div class="action-row">

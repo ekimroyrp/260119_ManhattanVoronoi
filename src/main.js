@@ -57,6 +57,7 @@ const seedInput = document.getElementById("seed");
 const densityInput = document.getElementById("density");
 const smoothingInput = document.getElementById("smoothing");
 const cubeToggle = document.getElementById("cube-toggle");
+const colorsToggle = document.getElementById("colors-toggle");
 const generateButton = document.getElementById("generate");
 const resetButton = document.getElementById("reset-camera");
 
@@ -69,6 +70,8 @@ const densityValue = document.getElementById("density-value");
 const smoothValue = document.getElementById("smooth-value");
 const cubeOn = document.getElementById("cube-on");
 const cubeOff = document.getElementById("cube-off");
+const colorsOn = document.getElementById("colors-on");
+const colorsOff = document.getElementById("colors-off");
 const meshStats = document.getElementById("mesh-stats");
 
 const ISO_LEVEL = 0.5;
@@ -97,6 +100,7 @@ let cellsGroup = null;
 let seedPoints = [];
 let rebuildTimer = null;
 let showBoxEdges = true;
+let colorsEnabled = true;
 
 function updateRange(input, output) {
   const value = Number(input.value);
@@ -128,6 +132,12 @@ function syncCubeToggle() {
   if (boxEdges) {
     boxEdges.visible = showBoxEdges;
   }
+}
+
+function syncColorsToggle() {
+  colorsToggle.checked = !colorsEnabled;
+  colorsOn.classList.toggle("active", colorsEnabled);
+  colorsOff.classList.toggle("active", !colorsEnabled);
 }
 
 function getPanelScale(rect) {
@@ -676,6 +686,13 @@ function flipGeometryNormals(geometry) {
 }
 
 function getCellMaterial(index, total) {
+  if (!colorsEnabled) {
+    return new THREE.MeshStandardMaterial({
+      color: 0xd6d9e0,
+      metalness: 0.12,
+      roughness: 0.55
+    });
+  }
   const hue = total > 0 ? index / total : 0;
   const color = new THREE.Color().setHSL(hue, 0.18, 0.6);
   return new THREE.MeshStandardMaterial({
@@ -831,11 +848,17 @@ cubeToggle.addEventListener("change", (event) => {
   showBoxEdges = !event.target.checked;
   syncCubeToggle();
 });
+colorsToggle.addEventListener("change", (event) => {
+  colorsEnabled = !event.target.checked;
+  syncColorsToggle();
+  scheduleRebuild(0);
+});
 generateButton.addEventListener("click", () => rebuildPreview());
 resetButton.addEventListener("click", () => resetCamera());
 
 resizeRenderer();
 brushDot.setAttribute("r", cursorDotRadius);
 syncCubeToggle();
+syncColorsToggle();
 rebuildPreview();
 animate();
