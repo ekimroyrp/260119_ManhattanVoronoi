@@ -35,6 +35,27 @@ controls.enableDamping = true;
 controls.target.set(0, 0, 0);
 controls.update();
 
+const defaultCameraPosition = camera.position.clone();
+const defaultCameraTarget = controls.target.clone();
+const cameraTween = {
+  active: false,
+  startTime: 0,
+  duration: 600,
+  startPos: new THREE.Vector3(),
+  startTarget: new THREE.Vector3(),
+  endPos: defaultCameraPosition.clone(),
+  endTarget: defaultCameraTarget.clone(),
+  startDir: new THREE.Vector3(),
+  endDir: new THREE.Vector3(),
+  startRadius: 0,
+  endRadius: 0,
+  startQuat: new THREE.Quaternion(),
+  endQuat: new THREE.Quaternion()
+};
+const refViewDirection = new THREE.Vector3(0, 0, 1);
+const tweenDirection = new THREE.Vector3();
+const tweenQuat = new THREE.Quaternion();
+
 const ambient = new THREE.AmbientLight(0xffffff, 0.7);
 const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
 keyLight.position.set(6, 8, 4);
@@ -189,48 +210,77 @@ function hideCell(seedIndex) {
     return;
   }
   hiddenSeeds.add(seedIndex);
-  startHideTween(cellMeshesBySeed.get(seedIndex));
-  startHideTween(wireMeshesBySeed.get(seedIndex));
-  startHideTween(seedMeshesBySeed.get(seedIndex));
+  startScaleTween(cellMeshesBySeed.get(seedIndex), 0, true);
+  startScaleTween(wireMeshesBySeed.get(seedIndex), 0, true);
+  startScaleTween(seedMeshesBySeed.get(seedIndex), 0, true);
 }
 
-function startHideTween(object, duration = 260) {
+function unhideCell(seedIndex) {
+  if (seedIndex === undefined || seedIndex === null) {
+    return;
+  }
+  hiddenSeeds.delete(seedIndex);
+  startScaleTween(cellMeshesBySeed.get(seedIndex), 1, false);
+  startScaleTween(wireMeshesBySeed.get(seedIndex), 1, false);
+  startScaleTween(seedMeshesBySeed.get(seedIndex), 1, false);
+}
+
+function unhideAllCells() {
+  if (!hiddenSeeds.size) {
+    return;
+  }
+  Array.from(hiddenSeeds).forEach((seedIndex) => unhideCell(seedIndex));
+  hiddenSeeds.clear();
+}
+
+function startScaleTween(object, targetScale, hideOnComplete, duration = 260) {
   if (!object) {
     return;
   }
-  if (object.userData.hideTween) {
+  if (object.userData.scaleTween) {
     return;
   }
-  if (!object.visible) {
-    object.scale.set(0, 0, 0);
+  if (targetScale > 0) {
+    object.visible = true;
+  }
+  const startScale = object.scale.x;
+  if (Math.abs(startScale - targetScale) < 1e-4) {
+    if (hideOnComplete && targetScale === 0) {
+      object.visible = false;
+    }
+    object.scale.setScalar(targetScale);
     return;
   }
-  object.userData.hideTween = {
+  object.userData.scaleTween = {
     startTime: performance.now(),
     duration,
-    startScale: object.scale.x
+    startScale,
+    targetScale,
+    hideOnComplete
   };
   activeScaleTweens.add(object);
 }
 
-function updateHideTweens() {
+function updateScaleTweens() {
   if (!activeScaleTweens.size) {
     return;
   }
   const now = performance.now();
   activeScaleTweens.forEach((object) => {
-    const tween = object.userData.hideTween;
+    const tween = object.userData.scaleTween;
     if (!tween) {
       activeScaleTweens.delete(object);
       return;
     }
     const t = Math.min(1, (now - tween.startTime) / tween.duration);
     const eased = 1 - Math.pow(1 - t, 3);
-    const scale = tween.startScale * (1 - eased);
+    const scale = tween.startScale + (tween.targetScale - tween.startScale) * eased;
     object.scale.set(scale, scale, scale);
     if (t >= 1) {
-      object.visible = false;
-      object.userData.hideTween = null;
+      if (tween.hideOnComplete && tween.targetScale === 0) {
+        object.visible = false;
+      }
+      object.userData.scaleTween = null;
       activeScaleTweens.delete(object);
     }
   });
@@ -956,11 +1006,28 @@ function scheduleRebuild(delay = 160) {
 }
 
 function resetCamera() {
-  camera.position.set(1.78 * 10, 2.1 * 10, 4.29 * 10);
-  camera.zoom = 1;
-  camera.updateProjectionMatrix();
-  controls.target.set(0, 0, 0);
-  controls.update();
+  startCameraTween(defaultCameraPosition, defaultCameraTarget);
+}
+
+function startCameraTween(endPos, endTarget) {
+  cameraTween.active = true;
+  cameraTween.startTime = performance.now();
+  cameraTween.startPos.copy(camera.position);
+  cameraTween.startTarget.copy(controls.target);
+  cameraTween.endPos.copy(endPos);
+  cameraTween.endTarget.copy(endTarget);
+  cameraTween.startDir.copy(cameraTween.startPos).sub(cameraTween.startTarget);
+  cameraTween.endDir.copy(cameraTween.endPos).sub(cameraTween.endTarget);
+  cameraTween.startRadius = cameraTween.startDir.length();
+  cameraTween.endRadius = cameraTween.endDir.length();
+  if (cameraTween.startRadius > 0) {
+    cameraTween.startDir.normalize();
+  }
+  if (cameraTween.endRadius > 0) {
+    cameraTween.endDir.normalize();
+  }
+  cameraTween.startQuat.setFromUnitVectors(refViewDirection, cameraTween.startDir);
+  cameraTween.endQuat.setFromUnitVectors(refViewDirection, cameraTween.endDir);
 }
 
 function resizeRenderer() {
@@ -977,8 +1044,21 @@ function resizeRenderer() {
 }
 
 function animate() {
+  if (cameraTween.active) {
+    const elapsed = performance.now() - cameraTween.startTime;
+    const t = Math.min(1, elapsed / cameraTween.duration);
+    const eased = t * t * (3 - 2 * t);
+    controls.target.lerpVectors(cameraTween.startTarget, cameraTween.endTarget, eased);
+    tweenQuat.copy(cameraTween.startQuat).slerp(cameraTween.endQuat, eased);
+    tweenDirection.copy(refViewDirection).applyQuaternion(tweenQuat);
+    const radius = THREE.MathUtils.lerp(cameraTween.startRadius, cameraTween.endRadius, eased);
+    camera.position.copy(controls.target).addScaledVector(tweenDirection, radius);
+    if (t >= 1) {
+      cameraTween.active = false;
+    }
+  }
   controls.update();
-  updateHideTweens();
+  updateScaleTweens();
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }
@@ -1098,8 +1178,8 @@ wireframeToggle.addEventListener("change", (event) => {
   wireframeEnabled = !event.target.checked;
   syncWireframeToggle();
 });
-generateButton.addEventListener("click", () => rebuildPreview());
-resetButton.addEventListener("click", () => resetCamera());
+generateButton.addEventListener("click", () => resetCamera());
+resetButton.addEventListener("click", () => unhideAllCells());
 
 resizeRenderer();
 brushDot.setAttribute("r", cursorDotRadius);

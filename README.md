@@ -13,7 +13,7 @@
 
 ## Controls
 - Drag the panel header to reposition the UI.
-- Use the sliders for box X/Y/Z, points, seed, density, and smoothing.
-- Click `Generate` to rebuild the Voronoi mesh and `Reset` to reframe the camera.
+- Use the sliders for box X/Y/Z, points, seed, resolution, smooth, and explode.
+- Click `Reframe` to smoothly reset the camera and `Unhide` to restore hidden cells.
 - Orbit controls: LMB rotate, MMB/scroll dolly, RMB pan.
-- MMB click a cell to hide it and its seed point.
+- MMB on a cell hides it and its seed point.
