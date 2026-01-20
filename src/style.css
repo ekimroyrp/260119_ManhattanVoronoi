@@ -367,7 +367,7 @@ input[type="range"]::-webkit-slider-runnable-track {
     linear-gradient(
       90deg,
       var(--accent) 0%,
-      #6cf7b1 var(--val),
+      #98ffd2 var(--val),
       #1b1d24 var(--val),
       #1b1d24 100%
     );
@@ -391,7 +391,7 @@ input[type="range"]::-moz-range-track {
     linear-gradient(
       90deg,
       var(--accent) 0%,
-      #6cf7b1 var(--val),
+      #98ffd2 var(--val),
       #1b1d24 var(--val),
       #1b1d24 100%
     );
