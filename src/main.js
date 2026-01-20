@@ -924,9 +924,9 @@ rangeInputs.forEach(([input, output]) => {
   });
 });
 
-updateRange(explodeInput, explodeValue, (value) => value.toFixed(1));
+updateRange(explodeInput, explodeValue);
 explodeInput.addEventListener("input", () => {
-  const value = updateRange(explodeInput, explodeValue, (next) => next.toFixed(1));
+  const value = updateRange(explodeInput, explodeValue);
   applyExplode(value);
 });
 
