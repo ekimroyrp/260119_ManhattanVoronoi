@@ -9,6 +9,7 @@ import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
+import { OBJExporter } from "three/examples/jsm/exporters/OBJExporter.js";
 
 const host = document.querySelector("#canvas-host");
 const scene = new THREE.Scene();
@@ -86,6 +87,8 @@ const generateButton = document.getElementById("generate");
 const resetButton = document.getElementById("reset-camera");
 const undoButton = document.getElementById("undo-action");
 const redoButton = document.getElementById("redo-action");
+const screenshotButton = document.getElementById("screenshot-btn");
+const exportButton = document.getElementById("export-obj");
 
 const boxXValue = document.getElementById("box-x-value");
 const boxYValue = document.getElementById("box-y-value");
@@ -161,6 +164,68 @@ function updateMeshStats(stats) {
   const faces = stats.triangles ?? "--";
   const vertices = stats.vertices ?? "--";
   meshStats.textContent = `Faces: ${faces} | Vertices: ${vertices}`;
+}
+
+function downloadBlob(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.download = filename;
+  link.href = url;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function exportOBJ() {
+  if (!cellMeshesBySeed.size) {
+    return;
+  }
+  const group = new THREE.Group();
+  const indices = Array.from(cellMeshesBySeed.keys()).sort((a, b) => a - b);
+  indices.forEach((seedIndex) => {
+    if (hiddenSeeds.has(seedIndex)) {
+      return;
+    }
+    const mesh = cellMeshesBySeed.get(seedIndex);
+    if (!mesh || !mesh.geometry) {
+      return;
+    }
+    mesh.updateMatrixWorld(true);
+    const geometry = mesh.geometry.clone();
+    geometry.applyMatrix4(mesh.matrixWorld);
+    const exportMesh = new THREE.Mesh(geometry);
+    exportMesh.name = `cell_${seedIndex}`;
+    group.add(exportMesh);
+  });
+  if (!group.children.length) {
+    return;
+  }
+  const exporter = new OBJExporter();
+  const objData = exporter.parse(group);
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  downloadBlob(objData, `manhattanvoronoi-${stamp}.obj`, "text/plain");
+  group.traverse((child) => {
+    if (child.geometry) {
+      child.geometry.dispose();
+    }
+  });
+}
+
+function exportScreenshot() {
+  if (!renderer || !renderer.domElement) {
+    return;
+  }
+  renderer.render(scene, camera);
+  const dataURL = renderer.domElement.toDataURL("image/png");
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const link = document.createElement("a");
+  link.download = `manhattanvoronoi-${stamp}.png`;
+  link.href = dataURL;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 function syncCubeToggle() {
@@ -1288,6 +1353,8 @@ generateButton.addEventListener("click", () => resetCamera());
 resetButton.addEventListener("click", () => unhideAllCells());
 undoButton.addEventListener("click", () => undoHiddenState());
 redoButton.addEventListener("click", () => redoHiddenState());
+screenshotButton.addEventListener("click", () => exportScreenshot());
+exportButton.addEventListener("click", () => exportOBJ());
 
 resizeRenderer();
 brushDot.setAttribute("r", cursorDotRadius);
