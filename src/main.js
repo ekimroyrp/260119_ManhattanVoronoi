@@ -136,10 +136,9 @@ function updateMeshStats(stats) {
     meshStats.textContent = "Building...";
     return;
   }
-  const cells = stats.cells ?? "--";
-  const triangles = stats.triangles ?? "--";
+  const faces = stats.triangles ?? "--";
   const vertices = stats.vertices ?? "--";
-  meshStats.textContent = `Cells: ${cells} | Tris: ${triangles} | Verts: ${vertices}`;
+  meshStats.textContent = `Faces: ${faces} | Vertices: ${vertices}`;
 }
 
 function syncCubeToggle() {
